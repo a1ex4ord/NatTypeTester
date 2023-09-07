@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\common.props" />
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI" Version="19.4.1" />
+    <PackageReference Include="Volo.Abp.Core" Version="7.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\STUN\STUN.csproj" />
+  </ItemGroup>
+
+</Project>
