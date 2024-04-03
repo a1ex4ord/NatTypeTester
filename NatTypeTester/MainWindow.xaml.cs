@@ -1,59 +1,69 @@
-﻿using NatTypeTester.Net;
-using System;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Input;
+using Microsoft.Extensions.DependencyInjection;
+using ModernWpf.Controls;
+using NatTypeTester.ViewModels;
+using ReactiveMarbles.ObservableEvents;
+using ReactiveUI;
+using System.Reactive.Disposables;
+using Volo.Abp.DependencyInjection;
 
-namespace NatTypeTester
+namespace NatTypeTester;
+
+public partial class MainWindow : ISingletonDependency
 {
-	public partial class MainWindow
+	public MainWindow(MainWindowViewModel viewModel, IServiceProvider serviceProvider)
 	{
-		public MainWindow()
-		{
-			InitializeComponent();
-		}
+		InitializeComponent();
+		ViewModel = viewModel;
 
-		public static string[] StunServers { get; set; } =
+		this.WhenActivated(d =>
 		{
-				@"stun.miwifi.com",
-				@"stun.bige0.com",
-				@"stun.syncthing.net",
-				@"stun.stunprotocol.org",
-				@"iphone-stun.strato-iphone.de",
-				@"stun.voipstunt.com",
-				@"stun.xten.com",
-				@"stun.schlund.de",
-				@"numb.viagenie.ca",
-				@"stun.ekiga.net",
-				@"stun.sipgate.net",
-		};
+			#region Server
 
-		private void TestButton_OnClick(object sender, RoutedEventArgs e)
-		{
-			TestButton.IsEnabled = false;
-			var server = ServersComboBox.Text;
-			var port = PortNumber.NumValue;
-			var local = LocalEndTextBox.Text;
-			Task.Run(() =>
-			{
-				var (natType, localEnd, publicEnd) = NetUtils.NatTypeTestCore(local, server, port);
+			this.Bind(ViewModel,
+				vm => vm.Config.StunServer,
+				v => v.ServersComboBox.Text
+			).DisposeWith(d);
 
-				Dispatcher?.BeginInvoke(new Action(() =>
+			this.OneWayBind(ViewModel,
+				vm => vm.StunServers,
+				v => v.ServersComboBox.ItemsSource
+			).DisposeWith(d);
+
+			#endregion
+
+			this.OneWayBind(ViewModel, vm => vm.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
+
+			NavigationView.Events().SelectionChanged
+				.Subscribe(parameter =>
 				{
-					NatTypeTextBox.Text = natType;
-					LocalEndTextBox.Text = localEnd;
-					PublicEndTextBox.Text = publicEnd;
-					TestButton.IsEnabled = true;
-				}));
-			});
-		}
+					if (parameter.args.IsSettingsSelected)
+					{
+						ViewModel.Router.Navigate.Execute(serviceProvider.GetRequiredService<SettingViewModel>()).Subscribe().Dispose();
+						return;
+					}
 
-		private void MainWindow_OnKeyDown(object sender, KeyEventArgs e)
-		{
-			if (e.Key == Key.Enter)
-			{
-				TestButton_OnClick(this, new RoutedEventArgs());
-			}
-		}
+					if (parameter.args.SelectedItem is not NavigationViewItem { Tag: string tag })
+					{
+						return;
+					}
+
+					switch (tag)
+					{
+						case @"1":
+						{
+							ViewModel.Router.Navigate.Execute(serviceProvider.GetRequiredService<RFC5780ViewModel>()).Subscribe().Dispose();
+							break;
+						}
+						case @"2":
+						{
+							ViewModel.Router.Navigate.Execute(serviceProvider.GetRequiredService<RFC3489ViewModel>()).Subscribe().Dispose();
+							break;
+						}
+					}
+				}).DisposeWith(d);
+			NavigationView.SelectedItem = NavigationView.MenuItems.OfType<NavigationViewItem>().First();
+
+			ViewModel.LoadStunServer();
+		});
 	}
 }
